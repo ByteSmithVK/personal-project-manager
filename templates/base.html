@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Personal Project Manager{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- Top Navigation -->
+  <header class="topnav">
+    <div class="topnav-left">
+      <span class="logo-dot"></span>
+      <a href="{{ url_for('dashboard') }}" class="logo-text">Project Manager</a>
+    </div>
+
+    <div class="topnav-right">
+      <a href="{{ url_for('settings') }}" class="nav-icon-btn {{ 'active' if request.path == '/settings' else '' }}" title="Settings (Manage Guides & Assigned By)" aria-label="Settings">
+        <span class="settings-icon">⚙️</span>
+      </a>
+
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <span class="theme-toggle-icon sun">☀️</span>
+        <span class="theme-toggle-icon moon">🌙</span>
+        <span class="theme-toggle-knob"></span>
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-wrap">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="app-footer">
+    <span>Personal Project Manager &middot; built for one, kept simple.</span>
+  </footer>
+
+</div>
+
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

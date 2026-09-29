@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+{% block title %}{{ project.project_name if project else 'Project Not Found' }} · Personal Project Manager{% endblock %}
+
+{% block content %}
+
+{% if project %}
+
+{% set end_str = project.end_date.strftime('%Y-%m-%d') if project.end_date else '' %}
+{% set is_proj_overdue = end_str and project.status not in ['Completed', 'On Hold'] and end_str < now %}
+{% set is_proj_due_soon = end_str and project.status not in ['Completed', 'On Hold'] and end_str >= now and end_str <= due_soon_date %}
+
+<div class="page-header">
+  <div>
+    <p class="back-link"><a href="{{ url_for('dashboard') }}">&larr; Back to Projects</a></p>
+    <h1>
+      {{ project.project_name }}
+      {% if is_proj_overdue %}
+        <span class="badge badge-overdue" title="Project deadline has passed!">Overdue</span>
+      {% elif is_proj_due_soon %}
+        <span class="badge badge-due-soon" title="Deadline approaching within 3 days!">Due Soon</span>
+      {% endif %}
+    </h1>
+
+    <div class="progress-wrap">
+      <div class="progress-track">
+        <div class="progress-fill" style="width: {{ progress }}%;"></div>
+      </div>
+      <span class="progress-label">{{ progress }}%</span>
+      <span class="progress-milestone-text">
+        {% if total_tasks > 0 %}
+          ({{ completed_tasks }}/{{ total_tasks }} tasks, {{ milestones_completed }}/{{ milestones_total }} milestones)
+        {% elif milestones_total > 0 %}
+          ({{ milestones_completed }}/{{ milestones_total }} milestones)
+        {% endif %}
+      </span>
+    </div>
+
+    <p class="page-subtitle">
+      <span class="badge badge-status status-{{ project.status | replace(' ', '-') | lower }}">{{ project.status }}</span>
+      <span class="badge badge-priority priority-{{ project.priority | lower }}">{{ project.priority }} priority</span>
+    </p>
+  </div>
+  <div class="header-actions">
+    <a href="{{ url_for('edit_project', project_id=project.project_id) }}" class="btn btn-primary">Edit Project</a>
+    <form action="{{ url_for('delete_project', project_id=project.project_id) }}" method="post"
+          class="inline-form"
+          data-confirm="Delete '{{ project.project_name }}'? All its milestones, tasks, meetings, and change requests will also be deleted. This cannot be undone.">
+      <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+<!-- Project Information -->
+<div class="details-card">
+  <h2 class="section-title">Project Information</h2>
+  <div class="details-grid">
+    <div class="details-item">
+      <span class="details-label">💻 Technology</span>
+      <span class="details-value">{{ project.technology or '—' }}</span>
+    </div>
+    <div class="details-item">
+      <span class="details-label">📅 Start Date</span>
+      <span class="details-value">{{ project.start_date or '—' }}</span>
+    </div>
+    <div class="details-item">
+      <span class="details-label">⏳ End Date</span>
+      <span class="details-value {{ 'text-overdue' if is_proj_overdue else ('text-due-soon' if is_proj_due_soon else '') }}">
+        {{ project.end_date or '—' }}
+        {% if is_proj_overdue %}
+          <small class="badge badge-overdue">Overdue</small>
+        {% elif is_proj_due_soon %}
+          <small class="badge badge-due-soon">Due Soon</small>
+        {% endif %}
+      </span>
+    </div>
+    <div class="details-item">
+      <span class="details-label">🎯 Priority</span>
+      <span class="details-value">
+        <span class="badge badge-priority priority-{{ project.priority | lower }}">{{ project.priority }}</span>
+      </span>
+    </div>
+    <div class="details-item">
+      <span class="details-label">🔗 Project Link</span>
+      <span class="details-value">
+        {% if project.project_link %}
+          <a href="{{ project.project_link }}" target="_blank" rel="noopener noreferrer" class="link-external">{{ project.project_link }} ↗</a>
+        {% else %}
+          —
+        {% endif %}
+      </span>
+    </div>
+    <div class="details-item">
+      <span class="details-label">💼 Assigned By</span>
+      <span class="details-value">
+        {% if assigned_by_name %}
+          <strong>{{ assigned_by_name }}</strong>
+        {% else %}
+          —
+        {% endif %}
+      </span>
+    </div>
+    <div class="details-item span-full">
+      <span class="details-label">👥 Guided By</span>
+      <div class="details-value">
+        {% if project_guides %}
+          {% for g in project_guides %}
+            <span class="guide-tag">👤 {{ g.name }}</span>
+          {% endfor %}
+        {% else %}
+          —
+        {% endif %}
+      </div>
+    </div>
+    <div class="details-item">
+      <span class="details-label">🕒 Last Updated</span>
+      <span class="details-value text-faint">{{ project.updated_at or '—' }}</span>
+    </div>
+  </div>
+
+  {% if project.description %}
+  <div class="details-block">
+    <span class="details-label">Description</span>
+    <p class="details-text">{{ project.description }}</p>
+  </div>
+  {% endif %}
+
+  {% if project.notes %}
+  <div class="details-block">
+    <span class="details-label">Notes</span>
+    <p class="details-text">{{ project.notes }}</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Summary row: Milestones + Status Meetings + Change Requests -->
+<div class="summary-grid summary-grid-3">
+
+  <div class="summary-card">
+    <h2 class="section-title">Milestones</h2>
+    <div class="summary-stat">
+      <span class="summary-number">{{ milestones_completed }} <small class="summary-total">/ {{ milestones_total }}</small></span>
+      <span class="summary-caption">Completed Milestones</span>
+    </div>
+    <a href="{{ url_for('add_milestone', project_id=project.project_id) }}" class="btn btn-primary btn-block">
+      + Add Milestone
+    </a>
+  </div>
+
+  <div class="summary-card">
+    <h2 class="section-title">Status Meetings</h2>
+    <div class="summary-stat">
+      <span class="summary-number">{{ meetings | length }}</span>
+      <span class="summary-caption">Total Meetings</span>
+    </div>
+    <a href="{{ url_for('add_meeting', project_id=project.project_id) }}" class="btn btn-secondary btn-block">
+      + Add Status Meeting
+    </a>
+  </div>
+
+  <div class="summary-card">
+    <h2 class="section-title">Change Requests</h2>
+    <div class="summary-stat">
+      <span class="summary-number">{{ cr_counts.total }}</span>
+      <span class="summary-caption">Total Requests</span>
+    </div>
+    <div class="cr-count-row">
+      <div class="cr-count-item">
+        <span class="cr-count-value">{{ cr_counts.open }}</span>
+        <span class="cr-count-label">Open</span>
+      </div>
+      <div class="cr-count-item">
+        <span class="cr-count-value">{{ cr_counts.in_progress }}</span>
+        <span class="cr-count-label">In Prog</span>
+      </div>
+      <div class="cr-count-item">
+        <span class="cr-count-value">{{ cr_counts.completed }}</span>
+        <span class="cr-count-label">Done</span>
+      </div>
+      <div class="cr-count-item">
+        <span class="cr-count-value">{{ cr_counts.rejected }}</span>
+        <span class="cr-count-label">Reject</span>
+      </div>
+    </div>
+    <a href="{{ url_for('add_change_request', project_id=project.project_id) }}" class="btn btn-secondary btn-block">
+      + Add Change Request
+    </a>
+  </div>
+
+</div>
+
+<!-- Milestones Section -->
+<div class="history-card">
+  <div class="card-header-flex">
+    <h2 class="section-title">Milestones & Key Deliverables</h2>
+    <a href="{{ url_for('add_milestone', project_id=project.project_id) }}" class="btn btn-primary btn-sm">+ Add Milestone</a>
+  </div>
+
+  {% if milestones %}
+  <div class="milestone-list">
+    {% for m in milestones %}
+    {% set m_due_str = m.due_date.strftime('%Y-%m-%d') if m.due_date else '' %}
+    {% set is_m_overdue = m_due_str and m.status not in ['Completed'] and project.status not in ['Completed', 'On Hold'] and m_due_str < now %}
+    {% set is_m_due_soon = m_due_str and m.status not in ['Completed'] and project.status not in ['Completed', 'On Hold'] and m_due_str >= now and m_due_str <= due_soon_date %}
+    {% set m_tasks = m.tasks or [] %}
+    {% set m_tasks_total = m_tasks | length %}
+    {% set m_tasks_completed = m_tasks | selectattr('is_completed') | list | length %}
+    <div class="milestone-card {{ 'milestone-done' if m.status == 'Completed' else '' }} {{ 'card-overdue' if is_m_overdue else ('card-due-soon' if is_m_due_soon else '') }}">
+      <div class="milestone-card-main">
+        <form action="{{ url_for('toggle_milestone', milestone_id=m.milestone_id) }}" method="post" class="inline-form">
+          <button type="submit" class="milestone-check-btn {{ 'checked' if m.status == 'Completed' else '' }}" title="{{ 'Mark Incomplete' if m.status == 'Completed' else 'Mark Completed' }}">
+            {{ '✓' if m.status == 'Completed' else '' }}
+          </button>
+        </form>
+        <div class="milestone-info">
+          <div class="milestone-title-row">
+            <span class="milestone-title {{ 'text-done' if m.status == 'Completed' else '' }}">{{ m.title }}</span>
+            <div class="milestone-badges">
+              <span class="badge badge-milestone status-{{ m.status | replace(' ', '-') | lower }}">{{ m.status }}</span>
+              {% if is_m_overdue %}
+                <span class="badge badge-overdue" title="Milestone due date has passed!">Overdue</span>
+              {% elif is_m_due_soon %}
+                <span class="badge badge-due-soon" title="Milestone due within 3 days!">Due Soon</span>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if m.description %}
+            <p class="milestone-desc">{{ m.description }}</p>
+          {% endif %}
+
+          <div class="milestone-meta">
+            {% if m.due_date %}
+              <span class="meta-item {{ 'text-overdue' if is_m_overdue else ('text-due-soon' if is_m_due_soon else '') }}">
+                <strong>Due:</strong> {{ m.due_date }}
+              </span>
+            {% endif %}
+            {% if m.completion_date %}
+              <span class="meta-item text-completed">
+                <strong>Completed on:</strong> {{ m.completion_date }}
+              </span>
+            {% endif %}
+            {% if m_tasks_total > 0 %}
+              <span class="meta-item text-tasks-count">
+                <strong>Sub-tasks:</strong> {{ m_tasks_completed }}/{{ m_tasks_total }} done
+              </span>
+            {% endif %}
+          </div>
+
+          <!-- Milestone Sub-Tasks Section -->
+          <div class="milestone-tasks-box">
+            <div class="tasks-box-header">
+              <span class="tasks-heading">Tasks</span>
+              <span class="tasks-badge">{{ m_tasks_completed }}/{{ m_tasks_total }}</span>
+            </div>
+
+            {% if m_tasks %}
+            <ul class="task-list">
+              {% for t in m_tasks %}
+              <li class="task-item {{ 'task-completed' if t.is_completed else '' }}">
+                <form action="{{ url_for('toggle_task', task_id=t.task_id) }}" method="post" class="inline-form">
+                  <button type="submit" class="task-check-btn {{ 'checked' if t.is_completed else '' }}" title="{{ 'Mark Incomplete' if t.is_completed else 'Mark Complete' }}">
+                    {{ '✓' if t.is_completed else '' }}
+                  </button>
+                </form>
+                <span class="task-title {{ 'text-done' if t.is_completed else '' }}">{{ t.task_title }}</span>
+                {% if t.due_date %}
+                  <span class="task-due-date">Due: {{ t.due_date }}</span>
+                {% endif %}
+                <form action="{{ url_for('delete_task', task_id=t.task_id) }}" method="post" class="inline-form" data-confirm="Delete task '{{ t.task_title }}'?">
+                  <button type="submit" class="task-del-btn" title="Delete sub-task">&times;</button>
+                </form>
+              </li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+
+            <!-- Inline Quick Add Task Form -->
+            <form action="{{ url_for('add_task', milestone_id=m.milestone_id) }}" method="post" class="inline-task-add-form">
+              <input type="text" name="task_title" placeholder="+ Add a task under this milestone..." required class="task-input">
+              <input type="date" name="due_date" class="task-date-input" title="Optional Due Date">
+              <button type="submit" class="btn btn-sm btn-secondary">+ Add Task</button>
+            </form>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="cell-actions">
+        <a href="{{ url_for('edit_milestone', milestone_id=m.milestone_id) }}" class="icon-btn">Edit</a>
+        <form action="{{ url_for('delete_milestone', milestone_id=m.milestone_id) }}" method="post"
+              class="inline-form"
+              data-confirm="Delete milestone '{{ m.title }}'? This cannot be undone.">
+          <button type="submit" class="icon-btn icon-btn-danger">Delete</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state empty-state-inline">
+    <p>No milestones created yet. Milestones and their sub-tasks help calculate your exact project progress percentage!</p>
+    <a href="{{ url_for('add_milestone', project_id=project.project_id) }}" class="btn btn-primary">+ Add First Milestone</a>
+  </div>
+  {% endif %}
+</div>
+
+
+<!-- Meeting History -->
+<div class="history-card">
+  <h2 class="section-title">Project Status Meetings</h2>
+
+  {% if meetings %}
+  <div class="meeting-list">
+    {% for m in meetings %}
+    <div class="meeting-card">
+      <div class="meeting-card-header">
+        <div>
+          <span class="meeting-date">{{ m.meeting_date }}</span>
+          <span class="meeting-title">{{ m.meeting_title }}</span>
+        </div>
+        <span class="badge badge-status status-{{ m.current_status | replace(' ', '-') | lower }}">{{ m.current_status }}</span>
+      </div>
+
+      {% if m.summary %}
+      <div class="meeting-field">
+        <span class="details-label">Summary</span>
+        <p class="details-text">{{ m.summary }}</p>
+      </div>
+      {% endif %}
+
+      {% if m.decisions %}
+      <div class="meeting-field">
+        <span class="details-label">Decisions Made</span>
+        <p class="details-text">{{ m.decisions }}</p>
+      </div>
+      {% endif %}
+
+      {% if m.action_items %}
+      <div class="meeting-field">
+        <span class="details-label">Action Items</span>
+        <p class="details-text">{{ m.action_items }}</p>
+      </div>
+      {% endif %}
+
+      {% if m.notes %}
+      <div class="meeting-field">
+        <span class="details-label">Notes</span>
+        <p class="details-text">{{ m.notes }}</p>
+      </div>
+      {% endif %}
+
+      <div class="meeting-card-footer">
+        {% if m.next_meeting_date %}
+          <span class="details-value">Next Meeting: {{ m.next_meeting_date }}</span>
+        {% else %}
+          <span class="details-value">&nbsp;</span>
+        {% endif %}
+        <div class="cell-actions">
+          <a href="{{ url_for('edit_meeting', meeting_id=m.meeting_id) }}" class="icon-btn">Edit</a>
+          <form action="{{ url_for('delete_meeting', meeting_id=m.meeting_id) }}" method="post"
+                class="inline-form"
+                data-confirm="Delete the meeting '{{ m.meeting_title }}' on {{ m.meeting_date }}? This cannot be undone.">
+            <button type="submit" class="icon-btn icon-btn-danger">Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state empty-state-inline">
+    <p>No status meetings recorded yet.</p>
+    <a href="{{ url_for('add_meeting', project_id=project.project_id) }}" class="btn btn-primary">+ Add Status Meeting</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Change Request History -->
+<div class="history-card">
+  <h2 class="section-title">Change Request History</h2>
+
+  {% if change_requests %}
+  <div class="cr-list">
+    {% for cr in change_requests %}
+    <div class="cr-card">
+      <div class="cr-card-header">
+        <div>
+          <span class="cr-id">CR-{{ '%03d' % cr.change_request_id }}</span>
+          <span class="meeting-title">{{ cr.title }}</span>
+        </div>
+        <div class="cr-badges">
+          <span class="badge badge-priority priority-{{ cr.priority | lower }}">{{ cr.priority }}</span>
+          <span class="badge badge-cr cr-{{ cr.status | replace(' ', '-') | lower }}">{{ cr.status }}</span>
+        </div>
+      </div>
+
+      <div class="details-grid cr-meta-grid">
+        <div class="details-item">
+          <span class="details-label">Request Date</span>
+          <span class="details-value">{{ cr.request_date }}</span>
+        </div>
+        <div class="details-item">
+          <span class="details-label">Requested By</span>
+          <span class="details-value">{{ cr.requested_by or '—' }}</span>
+        </div>
+        <div class="details-item">
+          <span class="details-label">Completion Date</span>
+          <span class="details-value">{{ cr.completion_date or '—' }}</span>
+        </div>
+      </div>
+
+      {% if cr.description %}
+      <div class="meeting-field">
+        <span class="details-label">Description</span>
+        <p class="details-text">{{ cr.description }}</p>
+      </div>
+      {% endif %}
+
+      {% if cr.reason %}
+      <div class="meeting-field">
+        <span class="details-label">Reason</span>
+        <p class="details-text">{{ cr.reason }}</p>
+      </div>
+      {% endif %}
+
+      {% if cr.notes %}
+      <div class="meeting-field">
+        <span class="details-label">Notes</span>
+        <p class="details-text">{{ cr.notes }}</p>
+      </div>
+      {% endif %}
+
+      <div class="meeting-card-footer">
+        <span>&nbsp;</span>
+        <div class="cell-actions">
+          <a href="{{ url_for('edit_change_request', change_request_id=cr.change_request_id) }}" class="icon-btn">Edit</a>
+          <form action="{{ url_for('delete_change_request', change_request_id=cr.change_request_id) }}" method="post"
+                class="inline-form"
+                data-confirm="Delete change request CR-{{ '%03d' % cr.change_request_id }} '{{ cr.title }}'? This cannot be undone.">
+            <button type="submit" class="icon-btn icon-btn-danger">Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state empty-state-inline">
+    <p>No change requests recorded yet.</p>
+    <a href="{{ url_for('add_change_request', project_id=project.project_id) }}" class="btn btn-primary">+ Add Change Request</a>
+  </div>
+  {% endif %}
+</div>
+
+{% else %}
+
+<div class="empty-state">
+  <h1>Project Not Found</h1>
+  <p>The project you're looking for doesn't exist or may have been deleted.</p>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Back to Dashboard</a>
+</div>
+
+{% endif %}
+
+{% endblock %}

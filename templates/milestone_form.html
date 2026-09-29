@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if milestone else 'Add' }} Milestone · Personal Project Manager{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <p class="back-link"><a href="{{ url_for('project_details', project_id=project.project_id) }}">&larr; Back to {{ project.project_name }}</a></p>
+    <h1>{{ 'Edit' if milestone else 'Add' }} Milestone</h1>
+    <p class="page-subtitle">Track a key deliverable or phase for “{{ project.project_name }}”.</p>
+  </div>
+</div>
+
+<div class="form-card">
+  <form method="post" action="{{ form_action }}" novalidate>
+
+    <div class="form-group">
+      <label for="title">Milestone Title <span class="required">*</span></label>
+      <input type="text" id="title" name="title" maxlength="200" required
+             placeholder="e.g., Phase 1: Database Setup & Schema Design"
+             value="{{ milestone.title if milestone else '' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="description">Description / Deliverables</label>
+      <textarea id="description" name="description" rows="3"
+                placeholder="What needs to be completed for this milestone?">{{ milestone.description if milestone and milestone.description else '' }}</textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="due_date">Due Date</label>
+        <input type="date" id="due_date" name="due_date"
+               value="{{ milestone.due_date if milestone and milestone.due_date else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          {% for s in statuses %}
+            <option value="{{ s }}" {{ 'selected' if (milestone and milestone.status == s) else ('selected' if not milestone and s == 'Pending' else '') }}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="completion_date">Completion Date (Optional)</label>
+      <input type="date" id="completion_date" name="completion_date"
+             value="{{ milestone.completion_date if milestone and milestone.completion_date else '' }}">
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{ 'Save Changes' if milestone else 'Add Milestone' }}</button>
+      <a href="{{ url_for('project_details', project_id=project.project_id) }}" class="btn btn-ghost">Cancel</a>
+    </div>
+
+  </form>
+</div>
+
+{% endblock %}

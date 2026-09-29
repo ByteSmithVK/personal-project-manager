@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Settings · Personal Project Manager{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <p class="back-link"><a href="{{ url_for('dashboard') }}">&larr; Back to Dashboard</a></p>
+    <h1>Settings</h1>
+    <p class="page-subtitle">Manage Guides and "Assigned By" team members for your projects.</p>
+  </div>
+</div>
+
+<div class="settings-grid">
+
+  <!-- Guides Management Card -->
+  <div class="details-card settings-card">
+    <div class="card-header-flex">
+      <h2 class="section-title">Guides ("Guided By")</h2>
+      <span class="badge badge-status status-in-progress">{{ guides | length }} Guides</span>
+    </div>
+    <p class="settings-desc">Add names of mentors, team leads, or guides. You can select <strong>one or more guides</strong> when creating a project.</p>
+
+    <form method="post" action="{{ url_for('add_guide') }}" class="inline-add-form">
+      <input type="text" name="name" placeholder="Enter guide name..." maxlength="150" required class="form-input">
+      <button type="submit" class="btn btn-primary">+ Add Guide</button>
+    </form>
+
+    <div class="settings-list-wrap">
+      {% if guides %}
+        <ul class="settings-list">
+          {% for g in guides %}
+          <li class="settings-list-item">
+            <span class="item-name">👤 {{ g.name }}</span>
+            <form action="{{ url_for('delete_guide', guide_id=g.guide_id) }}" method="post" class="inline-form"
+                  data-confirm="Delete guide '{{ g.name }}'?">
+              <button type="submit" class="icon-btn icon-btn-danger" title="Delete">Delete</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty-state empty-state-inline">
+          <p>No guides added yet. Add your first guide above!</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Assigned By Management Card -->
+  <div class="details-card settings-card">
+    <div class="card-header-flex">
+      <h2 class="section-title">Assigned By Persons</h2>
+      <span class="badge badge-status status-completed">{{ assigned_by_persons | length }} Persons</span>
+    </div>
+    <p class="settings-desc">Add names of managers or stakeholders who assign projects. You can select <strong>one person</strong> per project.</p>
+
+    <form method="post" action="{{ url_for('add_assigned_by') }}" class="inline-add-form">
+      <input type="text" name="name" placeholder="Enter person name..." maxlength="150" required class="form-input">
+      <button type="submit" class="btn btn-primary">+ Add Person</button>
+    </form>
+
+    <div class="settings-list-wrap">
+      {% if assigned_by_persons %}
+        <ul class="settings-list">
+          {% for p in assigned_by_persons %}
+          <li class="settings-list-item">
+            <span class="item-name">💼 {{ p.name }}</span>
+            <form action="{{ url_for('delete_assigned_by', person_id=p.person_id) }}" method="post" class="inline-form"
+                  data-confirm="Delete '{{ p.name }}'?">
+              <button type="submit" class="icon-btn icon-btn-danger" title="Delete">Delete</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty-state empty-state-inline">
+          <p>No persons added yet. Add your first name above!</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

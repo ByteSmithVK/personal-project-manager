@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Personal Project Manager{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="page-subtitle">A quick look at everything you're working on.</p>
+  </div>
+  <a href="{{ url_for('add_project') }}" class="btn btn-primary btn-add">
+    <span class="plus">+</span> Add Project
+  </a>
+</div>
+
+<!-- Stat Cards -->
+<div class="stats-grid">
+  <div class="stat-card stat-total">
+    <span class="stat-label">Total Projects</span>
+    <span class="stat-value">{{ stats.total }}</span>
+  </div>
+  <div class="stat-card stat-not-started">
+    <span class="stat-label">Not Started</span>
+    <span class="stat-value">{{ stats.not_started }}</span>
+  </div>
+  <div class="stat-card stat-in-progress">
+    <span class="stat-label">In Progress</span>
+    <span class="stat-value">{{ stats.in_progress }}</span>
+  </div>
+  <div class="stat-card stat-completed">
+    <span class="stat-label">Completed</span>
+    <span class="stat-value">{{ stats.completed }}</span>
+  </div>
+  <div class="stat-card stat-on-hold">
+    <span class="stat-label">On Hold</span>
+    <span class="stat-value">{{ stats.on_hold }}</span>
+  </div>
+</div>
+
+<!-- Search & Filter -->
+<form class="filter-bar" method="get" action="{{ url_for('dashboard') }}">
+  <input
+    type="text"
+    name="search"
+    placeholder="Search by name, technology, or description..."
+    value="{{ search }}"
+    class="filter-search"
+  >
+
+  <select name="status" class="filter-select">
+    <option value="">All Statuses</option>
+    {% for s in statuses %}
+      <option value="{{ s }}" {{ 'selected' if status_filter == s else '' }}>{{ s }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="priority" class="filter-select">
+    <option value="">All Priorities</option>
+    {% for p in priorities %}
+      <option value="{{ p }}" {{ 'selected' if priority_filter == p else '' }}>{{ p }}</option>
+    {% endfor %}
+  </select>
+
+  <button type="submit" class="btn btn-secondary">Filter</button>
+  {% if search or status_filter or priority_filter %}
+    <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Clear</a>
+  {% endif %}
+</form>
+
+<!-- Project Table -->
+<div class="table-wrap">
+  {% if projects %}
+  <table class="project-table">
+    <thead>
+      <tr>
+        <th class="th-name">Project Name</th>
+        <th class="th-tech">Technology</th>
+        <th class="th-date">Start Date</th>
+        <th class="th-date">End Date</th>
+        <th class="th-status">Status</th>
+        <th class="th-priority">Priority</th>
+        <th class="th-actions">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in projects %}
+      {% set end_str = p.end_date.strftime('%Y-%m-%d') if p.end_date else '' %}
+      {% set is_overdue = end_str and p.status not in ['Completed', 'On Hold'] and end_str < now %}
+      {% set is_due_soon = end_str and p.status not in ['Completed', 'On Hold'] and end_str >= now and end_str <= due_soon_date %}
+      <tr class="{{ 'row-overdue' if is_overdue else ('row-due-soon' if is_due_soon else '') }}">
+        <td class="cell-name">
+          <a href="{{ url_for('project_details', project_id=p.project_id) }}" class="project-title-link">{{ p.project_name }}</a>
+          {% if is_overdue %}
+            <span class="badge badge-overdue" title="Project deadline has passed!">Overdue</span>
+          {% elif is_due_soon %}
+            <span class="badge badge-due-soon" title="Deadline approaching within 3 days!">Due Soon</span>
+          {% endif %}
+        </td>
+        <td class="cell-tech">
+          {% if p.technology %}
+            <span class="tech-tag">{{ p.technology }}</span>
+          {% else %}
+            <span class="text-faint">—</span>
+          {% endif %}
+        </td>
+        <td class="cell-date">{{ p.start_date or '—' }}</td>
+        <td class="cell-date {{ 'text-overdue' if is_overdue else ('text-due-soon' if is_due_soon else '') }}">
+          {{ p.end_date or '—' }}
+        </td>
+        <td class="cell-status">
+          <span class="badge badge-status status-{{ p.status | replace(' ', '-') | lower }}">{{ p.status }}</span>
+        </td>
+        <td class="cell-priority">
+          <span class="badge badge-priority priority-{{ p.priority | lower }}">{{ p.priority }}</span>
+        </td>
+        <td class="cell-actions-wrap">
+          <div class="cell-actions">
+            <a href="{{ url_for('project_details', project_id=p.project_id) }}" class="icon-btn btn-view" title="View Project Details">View</a>
+            <a href="{{ url_for('edit_project', project_id=p.project_id) }}" class="icon-btn btn-edit" title="Edit Project">Edit</a>
+            <form action="{{ url_for('delete_project', project_id=p.project_id) }}" method="post"
+                  class="inline-form"
+                  data-confirm="Are you sure you want to delete '{{ p.project_name }}'? This cannot be undone.">
+              <button type="submit" class="icon-btn icon-btn-danger" title="Delete Project">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📁</div>
+    <p>No projects found{% if search or status_filter or priority_filter %} for this search/filter{% endif %}.</p>
+    <a href="{{ url_for('add_project') }}" class="btn btn-primary">+ Add your first project</a>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
