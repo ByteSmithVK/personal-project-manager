@@ -13,20 +13,36 @@
   <!-- Top Navigation -->
   <header class="topnav">
     <div class="topnav-left">
-      <span class="logo-dot"></span>
       <a href="{{ url_for('dashboard') }}" class="logo-text">Project Manager</a>
     </div>
 
     <div class="topnav-right">
-      <a href="{{ url_for('settings') }}" class="nav-icon-btn {{ 'active' if request.path == '/settings' else '' }}" title="Settings (Manage Guides & Assigned By)" aria-label="Settings">
-        <span class="settings-icon">⚙️</span>
-      </a>
+      {% if current_user_id %}
+        <span class="nav-user-badge" title="Logged in as {{ current_username }}">
+          👤 {{ current_full_name or current_username }}
+        </span>
 
-      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
-        <span class="theme-toggle-icon sun">☀️</span>
-        <span class="theme-toggle-icon moon">🌙</span>
-        <span class="theme-toggle-knob"></span>
-      </button>
+        <a href="{{ url_for('settings') }}" class="nav-icon-btn {{ 'active' if request.path == '/settings' else '' }}" title="Settings (Manage Guides & Assigned By)" aria-label="Settings">
+          <span class="settings-icon">⚙️</span>
+        </a>
+
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+          <span class="theme-toggle-icon sun">☀️</span>
+          <span class="theme-toggle-icon moon">🌙</span>
+          <span class="theme-toggle-knob"></span>
+        </button>
+
+        <form action="{{ url_for('logout') }}" method="post" class="inline-form">
+          <button type="submit" class="btn btn-sm btn-ghost nav-logout-btn" title="Sign out of your account">Sign Out</button>
+        </form>
+      {% else %}
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+          <span class="theme-toggle-icon sun">☀️</span>
+          <span class="theme-toggle-icon moon">🌙</span>
+          <span class="theme-toggle-knob"></span>
+        </button>
+        <a href="{{ url_for('login') }}" class="btn btn-sm btn-primary">Sign In</a>
+      {% endif %}
     </div>
   </header>
 

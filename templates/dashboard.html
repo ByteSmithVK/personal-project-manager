@@ -16,7 +16,7 @@
 <!-- Stat Cards -->
 <div class="stats-grid">
   <div class="stat-card stat-total">
-    <span class="stat-label">Total Projects</span>
+    <span class="stat-label">Active Projects</span>
     <span class="stat-value">{{ stats.total }}</span>
   </div>
   <div class="stat-card stat-not-started">
@@ -37,8 +37,94 @@
   </div>
 </div>
 
+<!-- Upcoming Milestones & Tasks Widget (Due This Week) -->
+<div class="upcoming-widget details-card">
+  <div class="card-header-flex">
+    <div class="widget-header-title">
+      <h2 class="section-title" style="margin-bottom: 0;">📅 Tasks & Milestones Due This Week</h2>
+      <span class="badge badge-status {{ 'status-in-progress' if upcoming_items else 'status-completed' }}">
+        {{ upcoming_items | length }} pending
+      </span>
+    </div>
+    <small class="text-faint">Next 7 days & overdue items</small>
+  </div>
+
+  {% if upcoming_items %}
+  <div class="upcoming-list">
+    {% for item in upcoming_items %}
+      {% set is_item_overdue = item.due_date and item.due_date < now %}
+      {% set is_item_due_soon = item.due_date and item.due_date >= now and item.due_date <= due_soon_date %}
+      <div class="upcoming-item {{ 'row-overdue' if is_item_overdue else ('row-due-soon' if is_item_due_soon else '') }}">
+        <div class="upcoming-item-left">
+          {% if item.item_type == 'milestone' %}
+            <form action="{{ url_for('toggle_milestone', milestone_id=item.milestone_id) }}" method="post" class="inline-form">
+              <button type="submit" class="milestone-check-btn" title="Quick Complete Milestone">
+              </button>
+            </form>
+          {% else %}
+            <form action="{{ url_for('toggle_task', task_id=item.task_id) }}" method="post" class="inline-form">
+              <button type="submit" class="task-check-btn" title="Quick Complete Task">
+              </button>
+            </form>
+          {% endif %}
+
+          <div class="upcoming-item-info">
+            <div class="upcoming-item-title-row">
+              <span class="upcoming-item-type-badge type-{{ item.item_type }}">
+                {{ '🎯 Milestone' if item.item_type == 'milestone' else '☑️ Task' }}
+              </span>
+              <span class="upcoming-item-title">{{ item.item_title }}</span>
+              {% if item.milestone_title %}
+                <small class="text-faint">(under {{ item.milestone_title }})</small>
+              {% endif %}
+            </div>
+            <div class="upcoming-item-meta">
+              <a href="{{ url_for('project_details', project_id=item.project_id) }}" class="project-pill-link">
+                📁 {{ item.project_name }}
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="upcoming-item-right">
+          {% if is_item_overdue %}
+            <span class="badge badge-overdue" title="Overdue!">Overdue: {{ item.due_date }}</span>
+          {% elif is_item_due_soon %}
+            <span class="badge badge-due-soon" title="Due in ≤ 3 days">Due Soon: {{ item.due_date }}</span>
+          {% else %}
+            <span class="badge badge-milestone status-pending">Due: {{ item.due_date }}</span>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state empty-state-inline" style="padding: 16px 20px;">
+    <p>🎉 <strong>All caught up!</strong> You have no pending milestones or tasks due in the next 7 days.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Active vs. Archived View Tabs -->
+<div class="dashboard-tabs-bar">
+  <div class="view-tabs">
+    <a href="{{ url_for('dashboard', search=search, status=status_filter, priority=priority_filter, tag=tag_filter) }}"
+       class="view-tab {{ 'active' if not show_archived else '' }}">
+      📁 Active Projects <span class="tab-count">{{ stats.total }}</span>
+    </a>
+    <a href="{{ url_for('dashboard', archived=1, search=search, status=status_filter, priority=priority_filter, tag=tag_filter) }}"
+       class="view-tab {{ 'active' if show_archived else '' }}">
+      📦 Archived <span class="tab-count">{{ stats.archived }}</span>
+    </a>
+  </div>
+</div>
+
 <!-- Search & Filter -->
 <form class="filter-bar" method="get" action="{{ url_for('dashboard') }}">
+  {% if show_archived %}
+    <input type="hidden" name="archived" value="1">
+  {% endif %}
+
   <input
     type="text"
     name="search"
@@ -61,9 +147,16 @@
     {% endfor %}
   </select>
 
+  <select name="tag" class="filter-select">
+    <option value="">All Tags</option>
+    {% for t in all_tags %}
+      <option value="{{ t.tag_id }}" {{ 'selected' if tag_filter == t.tag_id|string else '' }}>🏷️ {{ t.name }}</option>
+    {% endfor %}
+  </select>
+
   <button type="submit" class="btn btn-secondary">Filter</button>
-  {% if search or status_filter or priority_filter %}
-    <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Clear</a>
+  {% if search or status_filter or priority_filter or tag_filter %}
+    <a href="{{ url_for('dashboard', archived=1 if show_archived else 0) }}" class="btn btn-ghost">Clear</a>
   {% endif %}
 </form>
 
@@ -84,16 +177,33 @@
     </thead>
     <tbody>
       {% for p in projects %}
-      {% set end_str = p.end_date.strftime('%Y-%m-%d') if p.end_date else '' %}
-      {% set is_overdue = end_str and p.status not in ['Completed', 'On Hold'] and end_str < now %}
-      {% set is_due_soon = end_str and p.status not in ['Completed', 'On Hold'] and end_str >= now and end_str <= due_soon_date %}
+      {% set effective_end = p.revised_end_date or p.end_date %}
+      {% set effective_end_str = effective_end.strftime('%Y-%m-%d') if effective_end else '' %}
+      {% set orig_end_str = p.end_date.strftime('%Y-%m-%d') if p.end_date else '' %}
+      {% set is_overdue = effective_end_str and p.status not in ['Completed', 'On Hold'] and not p.is_archived and effective_end_str < now %}
+      {% set is_due_soon = effective_end_str and p.status not in ['Completed', 'On Hold'] and not p.is_archived and effective_end_str >= now and effective_end_str <= due_soon_date %}
+      {% set is_on_hold_expired = p.status == 'On Hold' and orig_end_str and orig_end_str < now and not p.revised_end_date %}
       <tr class="{{ 'row-overdue' if is_overdue else ('row-due-soon' if is_due_soon else '') }}">
         <td class="cell-name">
-          <a href="{{ url_for('project_details', project_id=p.project_id) }}" class="project-title-link">{{ p.project_name }}</a>
-          {% if is_overdue %}
-            <span class="badge badge-overdue" title="Project deadline has passed!">Overdue</span>
-          {% elif is_due_soon %}
-            <span class="badge badge-due-soon" title="Deadline approaching within 3 days!">Due Soon</span>
+          <div class="project-name-cell-wrap">
+            <a href="{{ url_for('project_details', project_id=p.project_id) }}" class="project-title-link">{{ p.project_name }}</a>
+            {% if p.is_archived %}
+              <span class="badge badge-archived" title="Archived project">Archived</span>
+            {% elif is_overdue %}
+              <span class="badge badge-overdue" title="Project deadline has passed!">Overdue</span>
+            {% elif is_due_soon %}
+              <span class="badge badge-due-soon" title="Deadline approaching within 3 days!">Due Soon</span>
+            {% endif %}
+          </div>
+          {% if p.tags %}
+            <div class="project-tags-row">
+              {% for t in p.tags %}
+                <span class="tag-badge" style="--tag-color: {{ t.color }};">
+                  <span class="tag-dot" style="background-color: {{ t.color }};"></span>
+                  {{ t.name }}
+                </span>
+              {% endfor %}
+            </div>
           {% endif %}
         </td>
         <td class="cell-tech">
@@ -103,9 +213,24 @@
             <span class="text-faint">—</span>
           {% endif %}
         </td>
-        <td class="cell-date">{{ p.start_date or '—' }}</td>
+        <td class="cell-date">
+          {% if p.revised_start_date %}
+            <span>{{ p.revised_start_date }}</span>
+            <small class="badge badge-revised" title="Revised start date (Original: {{ p.start_date or 'N/A' }})">Rev</small>
+          {% else %}
+            {{ p.start_date or '—' }}
+          {% endif %}
+        </td>
         <td class="cell-date {{ 'text-overdue' if is_overdue else ('text-due-soon' if is_due_soon else '') }}">
-          {{ p.end_date or '—' }}
+          {% if p.revised_end_date %}
+            <span>{{ p.revised_end_date }}</span>
+            <small class="badge badge-revised" title="Revised deadline (Original: {{ p.end_date or 'N/A' }})">Revised</small>
+          {% elif is_on_hold_expired %}
+            <span>{{ p.end_date }}</span>
+            <small class="badge badge-needs-revision" title="Original deadline passed while on hold. Needs new timeline.">Needs Date</small>
+          {% else %}
+            {{ p.end_date or '—' }}
+          {% endif %}
         </td>
         <td class="cell-status">
           <span class="badge badge-status status-{{ p.status | replace(' ', '-') | lower }}">{{ p.status }}</span>
@@ -117,6 +242,14 @@
           <div class="cell-actions">
             <a href="{{ url_for('project_details', project_id=p.project_id) }}" class="icon-btn btn-view" title="View Project Details">View</a>
             <a href="{{ url_for('edit_project', project_id=p.project_id) }}" class="icon-btn btn-edit" title="Edit Project">Edit</a>
+            
+            <form action="{{ url_for('toggle_archive_project', project_id=p.project_id) }}" method="post" class="inline-form">
+              <button type="submit" class="icon-btn {{ 'btn-restore' if show_archived else 'btn-archive' }}"
+                      title="{{ 'Restore to active list' if show_archived else 'Archive project' }}">
+                {{ 'Restore' if show_archived else 'Archive' }}
+              </button>
+            </form>
+
             <form action="{{ url_for('delete_project', project_id=p.project_id) }}" method="post"
                   class="inline-form"
                   data-confirm="Are you sure you want to delete '{{ p.project_name }}'? This cannot be undone.">
@@ -131,9 +264,11 @@
   </table>
   {% else %}
   <div class="empty-state">
-    <div class="empty-icon">📁</div>
-    <p>No projects found{% if search or status_filter or priority_filter %} for this search/filter{% endif %}.</p>
-    <a href="{{ url_for('add_project') }}" class="btn btn-primary">+ Add your first project</a>
+    <div class="empty-icon">{{ '📦' if show_archived else '📁' }}</div>
+    <p>No {{ 'archived' if show_archived else '' }} projects found{% if search or status_filter or priority_filter or tag_filter %} for this search/filter{% endif %}.</p>
+    {% if not show_archived %}
+      <a href="{{ url_for('add_project') }}" class="btn btn-primary">+ Add your first project</a>
+    {% endif %}
   </div>
   {% endif %}
 </div>

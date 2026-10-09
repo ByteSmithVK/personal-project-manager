@@ -5,9 +5,12 @@
 
 {% if project %}
 
-{% set end_str = project.end_date.strftime('%Y-%m-%d') if project.end_date else '' %}
-{% set is_proj_overdue = end_str and project.status not in ['Completed', 'On Hold'] and end_str < now %}
-{% set is_proj_due_soon = end_str and project.status not in ['Completed', 'On Hold'] and end_str >= now and end_str <= due_soon_date %}
+{% set effective_end = project.revised_end_date or project.end_date %}
+{% set effective_end_str = effective_end.strftime('%Y-%m-%d') if effective_end else '' %}
+{% set orig_end_str = project.end_date.strftime('%Y-%m-%d') if project.end_date else '' %}
+{% set is_proj_overdue = effective_end_str and project.status not in ['Completed', 'On Hold'] and effective_end_str < now %}
+{% set is_proj_due_soon = effective_end_str and project.status not in ['Completed', 'On Hold'] and effective_end_str >= now and effective_end_str <= due_soon_date %}
+{% set is_on_hold_expired = project.status == 'On Hold' and orig_end_str and orig_end_str < now and not project.revised_end_date %}
 
 <div class="page-header">
   <div>
@@ -18,6 +21,8 @@
         <span class="badge badge-overdue" title="Project deadline has passed!">Overdue</span>
       {% elif is_proj_due_soon %}
         <span class="badge badge-due-soon" title="Deadline approaching within 3 days!">Due Soon</span>
+      {% elif project.revised_end_date %}
+        <span class="badge badge-revised" title="Timeline revised">Revised Timeline</span>
       {% endif %}
     </h1>
 
@@ -42,6 +47,13 @@
   </div>
   <div class="header-actions">
     <a href="{{ url_for('edit_project', project_id=project.project_id) }}" class="btn btn-primary">Edit Project</a>
+    
+    <form action="{{ url_for('toggle_archive_project', project_id=project.project_id) }}" method="post" class="inline-form">
+      <button type="submit" class="btn btn-secondary">
+        {{ '📦 Restore to Active' if project.is_archived else '📦 Archive Project' }}
+      </button>
+    </form>
+
     <form action="{{ url_for('delete_project', project_id=project.project_id) }}" method="post"
           class="inline-form"
           data-confirm="Delete '{{ project.project_name }}'? All its milestones, tasks, meetings, and change requests will also be deleted. This cannot be undone.">
@@ -49,6 +61,26 @@
     </form>
   </div>
 </div>
+
+{% if project.is_archived %}
+<div class="banner-notice banner-info" style="background: var(--surface-alt); border: 1px solid var(--border);">
+  <div class="banner-content">
+    <span>📦 <strong>This project is archived.</strong> It is hidden from the main active dashboard view.</span>
+  </div>
+  <form action="{{ url_for('toggle_archive_project', project_id=project.project_id) }}" method="post" class="inline-form">
+    <button type="submit" class="btn btn-sm btn-primary">Restore Project</button>
+  </form>
+</div>
+{% endif %}
+
+{% if is_on_hold_expired %}
+<div class="banner-notice banner-warning">
+  <div class="banner-content">
+    <span>⏸️ <strong>Project is On Hold:</strong> The original deadline ({{ project.end_date }}) has passed. You can set a revised start & end date when ready to resume.</span>
+  </div>
+  <a href="{{ url_for('edit_project', project_id=project.project_id) }}" class="btn btn-sm btn-secondary">Set Revised Timeline →</a>
+</div>
+{% endif %}
 
 <!-- Project Information -->
 <div class="details-card">
@@ -59,20 +91,30 @@
       <span class="details-value">{{ project.technology or '—' }}</span>
     </div>
     <div class="details-item">
-      <span class="details-label">📅 Start Date</span>
+      <span class="details-label">📅 Original Start Date</span>
       <span class="details-value">{{ project.start_date or '—' }}</span>
     </div>
     <div class="details-item">
-      <span class="details-label">⏳ End Date</span>
-      <span class="details-value {{ 'text-overdue' if is_proj_overdue else ('text-due-soon' if is_proj_due_soon else '') }}">
+      <span class="details-label">⏳ Original End Date</span>
+      <span class="details-value {{ 'text-strikethrough text-faint' if project.revised_end_date else '' }}">
         {{ project.end_date or '—' }}
-        {% if is_proj_overdue %}
-          <small class="badge badge-overdue">Overdue</small>
-        {% elif is_proj_due_soon %}
-          <small class="badge badge-due-soon">Due Soon</small>
-        {% endif %}
       </span>
     </div>
+
+    {% if project.revised_start_date or project.revised_end_date %}
+    <div class="details-item highlight-item">
+      <span class="details-label">🔄 Revised Start Date</span>
+      <span class="details-value">{{ project.revised_start_date or '—' }}</span>
+    </div>
+    <div class="details-item highlight-item">
+      <span class="details-label">🎯 Revised End Date</span>
+      <span class="details-value {{ 'text-overdue' if is_proj_overdue else ('text-due-soon' if is_proj_due_soon else '') }}">
+        {{ project.revised_end_date or '—' }}
+        <small class="badge badge-revised">Active Deadline</small>
+      </span>
+    </div>
+    {% endif %}
+
     <div class="details-item">
       <span class="details-label">🎯 Priority</span>
       <span class="details-value">
@@ -98,6 +140,23 @@
           —
         {% endif %}
       </span>
+    </div>
+    <div class="details-item span-full">
+      <span class="details-label">🏷️ Tags / Categories</span>
+      <div class="details-value">
+        {% if project_tags %}
+          <div class="project-tags-row">
+            {% for t in project_tags %}
+              <span class="tag-badge" style="--tag-color: {{ t.color }}; font-size: 0.85rem; padding: 4px 10px;">
+                <span class="tag-dot" style="background-color: {{ t.color }};"></span>
+                {{ t.name }}
+              </span>
+            {% endfor %}
+          </div>
+        {% else %}
+          <span class="text-faint">No tags assigned</span>
+        {% endif %}
+      </div>
     </div>
     <div class="details-item span-full">
       <span class="details-label">👥 Guided By</span>
@@ -128,6 +187,104 @@
   <div class="details-block">
     <span class="details-label">Notes</span>
     <p class="details-text">{{ project.notes }}</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Visual Project Timeline & Roadmap (Mini Gantt Chart) -->
+{% set effective_start_val = project.revised_start_date or project.start_date %}
+{% set effective_end_val = project.revised_end_date or project.end_date %}
+
+<div class="details-card gantt-roadmap-card">
+  <div class="card-header-flex">
+    <div>
+      <h2 class="section-title" style="margin-bottom: 2px;">📈 Visual Project Timeline & Roadmap</h2>
+      <p class="page-subtitle" style="margin: 0; font-size: 0.85rem;">Interactive roadmap showing project milestones, deliverables, and target deadline.</p>
+    </div>
+    {% if effective_start_val and effective_end_val %}
+      <span class="badge badge-status status-in-progress">
+        {{ effective_start_val }} → {{ effective_end_val }}
+      </span>
+    {% endif %}
+  </div>
+
+  {% if effective_start_val and effective_end_val %}
+  <div class="gantt-container" id="gantt-container"
+       data-start="{{ effective_start_val.strftime('%Y-%m-%d') if effective_start_val else '' }}"
+       data-end="{{ effective_end_val.strftime('%Y-%m-%d') if effective_end_val else '' }}"
+       data-today="{{ now }}">
+
+    <!-- Gantt Scale Header -->
+    <div class="gantt-header-dates">
+      <div class="gantt-date-start">
+        <span class="gantt-date-label">Start Date</span>
+        <strong>{{ effective_start_val }}</strong>
+      </div>
+      <div class="gantt-date-mid">
+        <span class="gantt-today-badge">📍 Today ({{ now }})</span>
+      </div>
+      <div class="gantt-date-end">
+        <span class="gantt-date-label">Target Deadline</span>
+        <strong>{{ effective_end_val }}</strong>
+      </div>
+    </div>
+
+    <!-- Master Project Track -->
+    <div class="gantt-track-wrap">
+      <div class="gantt-track-bg">
+        <div class="gantt-track-progress" style="width: {{ progress }}%;"></div>
+        <div class="gantt-today-marker" id="gantt-today-line" title="Today ({{ now }})">
+          <span class="gantt-today-pin">Today</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Milestones Gantt Rows -->
+    {% if milestones %}
+    <div class="gantt-rows">
+      {% for m in milestones %}
+        {% set m_due_str = m.due_date.strftime('%Y-%m-%d') if m.due_date else '' %}
+        {% set m_tasks_list = m.tasks or [] %}
+        {% set m_tasks_cnt = m_tasks_list | length %}
+        {% set m_tasks_done = m_tasks_list | selectattr('is_completed') | list | length %}
+        {% set is_m_overdue = m_due_str and m.status != 'Completed' and m_due_str < now %}
+        <div class="gantt-row" data-milestone-due="{{ m_due_str }}">
+          <div class="gantt-row-info">
+            <span class="gantt-ms-status-dot status-dot-{{ m.status | replace(' ', '-') | lower }}"></span>
+            <span class="gantt-row-title" title="{{ m.title }}">{{ m.title }}</span>
+            {% if m_tasks_cnt > 0 %}
+              <span class="gantt-row-tasks-badge">{{ m_tasks_done }}/{{ m_tasks_cnt }} tasks</span>
+            {% endif %}
+          </div>
+          <div class="gantt-row-bar-lane">
+            <div class="gantt-ms-bar status-{{ m.status | replace(' ', '-') | lower }} {{ 'bar-overdue' if is_m_overdue else '' }}"
+                 id="gantt-ms-bar-{{ m.milestone_id }}"
+                 title="{{ m.title }} (Due: {{ m.due_date or 'No date' }})">
+              <span class="gantt-ms-bar-label">
+                {{ '✓ Done' if m.status == 'Completed' else (m.due_date or m.status) }}
+              </span>
+            </div>
+          </div>
+          <div class="gantt-row-date">
+            {% if m.due_date %}
+              <span class="{{ 'text-overdue' if is_m_overdue else 'text-faint' }}">Due {{ m.due_date }}</span>
+            {% else %}
+              <span class="text-faint">—</span>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state empty-state-inline" style="margin-top: 14px; padding: 14px 20px;">
+      <p>💡 Add milestones below with due dates to see them visualized on this roadmap timeline!</p>
+    </div>
+    {% endif %}
+
+  </div>
+  {% else %}
+  <div class="empty-state empty-state-inline" style="padding: 20px;">
+    <p>📅 <strong>Set project dates:</strong> Set a start date and target end date in <a href="{{ url_for('edit_project', project_id=project.project_id) }}">Edit Project</a> to visualize the full interactive Gantt roadmap timeline.</p>
   </div>
   {% endif %}
 </div>
@@ -462,4 +619,57 @@
 
 {% endif %}
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const container = document.getElementById('gantt-container');
+  if (!container) return;
+
+  const startStr = container.dataset.start;
+  const endStr = container.dataset.end;
+  const todayStr = container.dataset.today;
+
+  if (!startStr || !endStr) return;
+
+  const startDate = new Date(startStr);
+  const endDate = new Date(endStr);
+  const todayDate = new Date(todayStr);
+
+  const totalDuration = endDate.getTime() - startDate.getTime();
+  if (totalDuration <= 0) return;
+
+  // Position Today Marker
+  const todayLine = document.getElementById('gantt-today-line');
+  if (todayLine) {
+    const todayOffset = todayDate.getTime() - startDate.getTime();
+    let todayPct = (todayOffset / totalDuration) * 100;
+    todayPct = Math.max(0, Math.min(100, todayPct));
+    todayLine.style.left = todayPct + '%';
+  }
+
+  // Position Milestone Bars
+  const rows = container.querySelectorAll('.gantt-row[data-milestone-due]');
+  rows.forEach(function (row) {
+    const dueStr = row.dataset.milestoneDue;
+    const bar = row.querySelector('.gantt-ms-bar');
+    if (!dueStr || !bar) {
+      if (bar) {
+        bar.style.left = '0%';
+        bar.style.width = '100%';
+      }
+      return;
+    }
+
+    const dueDate = new Date(dueStr);
+    const dueOffset = dueDate.getTime() - startDate.getTime();
+    let duePct = (dueOffset / totalDuration) * 100;
+    duePct = Math.max(2, Math.min(100, duePct));
+
+    bar.style.left = '0%';
+    bar.style.width = Math.min(100, Math.max(8, duePct)) + '%';
+  });
+});
+</script>
 {% endblock %}

@@ -7,11 +7,39 @@
   <div>
     <p class="back-link"><a href="{{ url_for('dashboard') }}">&larr; Back to Dashboard</a></p>
     <h1>Settings</h1>
-    <p class="page-subtitle">Manage Guides and "Assigned By" team members for your projects.</p>
+    <p class="page-subtitle">Manage your account security, project guides, and assigned-by members.</p>
   </div>
 </div>
 
 <div class="settings-grid">
+
+  <!-- Change Password Card -->
+  <div class="details-card settings-card">
+    <div class="card-header-flex">
+      <h2 class="section-title">Change Password</h2>
+      <span class="badge badge-status status-completed">Security</span>
+    </div>
+    <p class="settings-desc">Update your account login password. Choose a secure password with at least 6 characters.</p>
+
+    <form method="post" action="{{ url_for('change_password') }}" class="settings-password-form">
+      <div class="form-group" style="margin-bottom: 8px;">
+        <label for="current_password" style="font-size: 0.8rem; margin-bottom: 3px;">Current Password <span class="required">*</span></label>
+        <input type="password" id="current_password" name="current_password" required placeholder="Enter current password" class="form-input" style="padding: 7px 11px;">
+      </div>
+
+      <div class="form-group" style="margin-bottom: 8px;">
+        <label for="new_password" style="font-size: 0.8rem; margin-bottom: 3px;">New Password <span class="required">*</span></label>
+        <input type="password" id="new_password" name="new_password" required minlength="6" placeholder="At least 6 characters" class="form-input" style="padding: 7px 11px;">
+      </div>
+
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label for="confirm_password" style="font-size: 0.8rem; margin-bottom: 3px;">Confirm New Password <span class="required">*</span></label>
+        <input type="password" id="confirm_password" name="confirm_password" required minlength="6" placeholder="Re-enter new password" class="form-input" style="padding: 7px 11px;">
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block" style="padding: 8px 16px;">Update Password</button>
+    </form>
+  </div>
 
   <!-- Guides Management Card -->
   <div class="details-card settings-card">
@@ -19,7 +47,7 @@
       <h2 class="section-title">Guides ("Guided By")</h2>
       <span class="badge badge-status status-in-progress">{{ guides | length }} Guides</span>
     </div>
-    <p class="settings-desc">Add names of mentors, team leads, or guides. You can select <strong>one or more guides</strong> when creating a project.</p>
+    <p class="settings-desc">Add mentors or guides. You can select <strong>one or more guides</strong> when creating a project.</p>
 
     <form method="post" action="{{ url_for('add_guide') }}" class="inline-add-form">
       <input type="text" name="name" placeholder="Enter guide name..." maxlength="150" required class="form-input">
@@ -53,7 +81,7 @@
       <h2 class="section-title">Assigned By Persons</h2>
       <span class="badge badge-status status-completed">{{ assigned_by_persons | length }} Persons</span>
     </div>
-    <p class="settings-desc">Add names of managers or stakeholders who assign projects. You can select <strong>one person</strong> per project.</p>
+    <p class="settings-desc">Add managers or stakeholders who assign projects. You can select <strong>one person</strong> per project.</p>
 
     <form method="post" action="{{ url_for('add_assigned_by') }}" class="inline-add-form">
       <input type="text" name="name" placeholder="Enter person name..." maxlength="150" required class="form-input">
@@ -76,6 +104,44 @@
       {% else %}
         <div class="empty-state empty-state-inline">
           <p>No persons added yet. Add your first name above!</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Project Tags / Categories Management Card -->
+  <div class="details-card settings-card">
+    <div class="card-header-flex">
+      <h2 class="section-title">Project Tags / Categories</h2>
+      <span class="badge badge-status status-in-progress">{{ tags | length }} Tags</span>
+    </div>
+    <p class="settings-desc">Create custom tags (e.g. <em>Client Work, Internal Tools, Research, Personal</em>) to categorize and filter projects.</p>
+
+    <form method="post" action="{{ url_for('add_tag') }}" class="inline-add-form tag-add-form">
+      <input type="text" name="name" placeholder="Tag name (e.g. Client Work)..." maxlength="80" required class="form-input" style="flex: 1;">
+      <input type="color" name="color" value="#3b82f6" title="Pick tag color" class="tag-color-picker">
+      <button type="submit" class="btn btn-primary">+ Add Tag</button>
+    </form>
+
+    <div class="settings-list-wrap">
+      {% if tags %}
+        <ul class="settings-list">
+          {% for t in tags %}
+          <li class="settings-list-item">
+            <span class="tag-badge" style="--tag-color: {{ t.color }};">
+              <span class="tag-dot" style="background-color: {{ t.color }};"></span>
+              {{ t.name }}
+            </span>
+            <form action="{{ url_for('delete_tag', tag_id=t.tag_id) }}" method="post" class="inline-form"
+                  data-confirm="Delete tag '{{ t.name }}'?">
+              <button type="submit" class="icon-btn icon-btn-danger" title="Delete">Delete</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty-state empty-state-inline">
+          <p>No tags created yet. Add your first tag above!</p>
         </div>
       {% endif %}
     </div>

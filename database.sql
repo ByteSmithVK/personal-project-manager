@@ -10,20 +10,38 @@
 CREATE DATABASE IF NOT EXISTS personal_project_manager;
 USE personal_project_manager;
 
+-- ---------------------------------------------------------------
+-- Users table (authentication)
+-- ---------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(80) NOT NULL UNIQUE,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    password_hash VARCHAR(256) NOT NULL,
+    full_name VARCHAR(150),
+    reset_token VARCHAR(64) NULL,
+    reset_token_expiry DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS guides (
     guide_id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
+    user_id INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS assigned_by_persons (
     person_id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
+    user_id INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS projects (
     project_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,
     project_name VARCHAR(200) NOT NULL,
     description TEXT,
     technology VARCHAR(200),
@@ -34,6 +52,8 @@ CREATE TABLE IF NOT EXISTS projects (
     project_link VARCHAR(500),
     notes TEXT,
     assigned_by_id INT NULL,
+    revised_start_date DATE NULL,
+    revised_end_date DATE NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
